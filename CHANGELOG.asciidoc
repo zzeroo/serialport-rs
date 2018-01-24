@@ -16,6 +16,7 @@ and this project adheres to http://semver.org/[Semantic Versioning].
 
 ==== Fixed
 * On Windows, the `port_name` field on `SerialPortInfo` included a trailing nul byte character.
+* 921600 baud is now supported on NetBSD and FreeBSD.
 
 === [2.3.0] - 2018-03-13
 ==== Added
