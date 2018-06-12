@@ -12,8 +12,9 @@
 extern crate argparse;
 extern crate serialport;
 
-use argparse::{ArgumentParser, Store};
+use argparse::{ArgumentParser, Store, StoreTrue};
 
+use std::io::Write;
 use std::time::Duration;
 use std::str;
 
@@ -22,25 +23,34 @@ use serialport::prelude::*;
 fn main() {
     let mut port1_name = "".to_string();
     let mut port2_name = "".to_string();
+    let mut port1_loopback = false;
     {
         let mut ap = ArgumentParser::new();
         ap.set_description("Test serial ports");
         ap.refer(&mut port1_name)
             .add_argument("port1", Store, "Port 1 name")
             .required();
+        ap.refer(&mut port1_loopback)
+            .add_option(&["-l", "--loopback"], StoreTrue, "Enable loopback tests for port 1 (unavailable when both ports are specified)");
         ap.refer(&mut port2_name)
             .add_argument("port2", Store, "Port 2 name");
         ap.parse_args_or_exit();
     }
 
+    // Loopback mode is only available when a single port is specified
+    if port1_loopback && port2_name != "" {
+        eprintln!("ERROR: loopback mode can only be enabled when a single port is specified.");
+        ::std::process::exit(1);
+    }
+
     // Run single-port tests on port1
     let mut port1 = serialport::open(&port1_name).unwrap();
-    test_single_port(&mut *port1);
+    test_single_port(&mut *port1, port1_loopback);
 
     if port2_name != "" {
         // Run single-port tests on port2
         let mut port2 = serialport::open(&port2_name).unwrap();
-        test_single_port(&mut *port2);
+        test_single_port(&mut *port2, false);
 
         // Test loopback pair
         test_dual_ports(&mut *port1, &mut *port2);
@@ -135,7 +145,7 @@ macro_rules! stop_bits_check {
     };
 }
 
-fn test_single_port(port: &mut serialport::SerialPort) {
+fn test_single_port(port: &mut serialport::SerialPort, loopback: bool) {
     println!("Testing '{}':", port.port_name().unwrap());
 
     // Test setting standard baud rates
@@ -168,6 +178,35 @@ fn test_single_port(port: &mut serialport::SerialPort) {
     stop_bits_check!(port, StopBits::Two);
     stop_bits_check!(port, StopBits::One);
 
+    // Test transmitting data
+    print!("Testing data transmission...");
+    std::io::stdout().flush().unwrap();
+    // Make sure the port has sane defaults
+    let mut port_settings: SerialPortSettings = Default::default();
+    port_settings.timeout = Duration::from_secs(1);
+    port
+        .set_all(&port_settings)
+        .expect("Resetting port to sane defaults failed");
+    let msg = "Test Message";
+    port.write_all(msg.as_bytes()).expect("Unable to write bytes.");
+    println!("success");
+
+    // Test receiving the data we just sent
+    if loopback {
+        print!("Testing data reception...");
+        std::io::stdout().flush().unwrap();
+        let mut buf = [0u8; 12];
+        if port.read_exact(&mut buf).is_err() {
+            println!("FAILED");
+        } else {
+            assert_eq!(
+                str::from_utf8(&buf).unwrap(),
+                msg,
+                "Received message does not match sent"
+            );
+            println!("success");
+        }
+    }
 }
 
 fn test_dual_ports(port1: &mut serialport::SerialPort, port2: &mut serialport::SerialPort) {
