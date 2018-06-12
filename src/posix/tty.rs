@@ -16,10 +16,8 @@ use posix::ioctl;
 use nix::libc::{c_char, c_void};
 #[cfg(target_os = "linux")]
 use libudev;
-use nix::{self, unistd};
+use nix::{self, libc, unistd};
 use nix::fcntl::fcntl;
-use nix::sys::termios::SetArg::TCSANOW;
-use nix::sys::termios::{tcgetattr, tcsetattr, Termios};
 
 use {BaudRate, DataBits, FlowControl, Parity, SerialPort, SerialPortInfo, SerialPortSettings,
      SerialPortType, StopBits, UsbPortInfo};
@@ -74,19 +72,18 @@ impl TTYPort {
 
         use nix::fcntl::OFlag;
         use nix::fcntl::FcntlArg::F_SETFL;
-        use nix::sys::termios::ControlFlags;
-        use nix::sys::termios::{cfmakeraw, tcgetattr, tcsetattr, tcflush};
-        use nix::sys::termios::SetArg::TCSANOW;
-        use nix::sys::termios::FlushArg::TCIOFLUSH;
+        use nix::libc::{self, cfmakeraw, tcgetattr, tcsetattr, tcflush};
 
         let fd = nix::fcntl::open(path,
                                   OFlag::O_RDWR | OFlag::O_NOCTTY | OFlag::O_NONBLOCK,
                                   nix::sys::stat::Mode::empty())?;
 
-        let mut termios = tcgetattr(fd).map_err(|e| {
-            close(fd);
-            e
-        })?;
+        let mut termios = unsafe { mem::uninitialized() };
+        let res = unsafe { tcgetattr(fd, &mut termios) };
+        if let Err(e) = nix::errno::Errno::result(res) {
+             close(fd);
+             return Err(e.into());
+        }
 
         // If any of these steps fail, then we should abort creation of the
         // TTYPort and ensure the file descriptor is closed.
@@ -94,26 +91,27 @@ impl TTYPort {
         {
             // setup TTY for binary serial port access
             // Enable reading from the port and ignore all modem control lines
-            termios.control_flags.insert(ControlFlags::CREAD | ControlFlags::CLOCAL);
-            // Enable raw mode with disables any implicit processing of the input or output data streams
+            termios.c_cflag |= libc::CREAD | libc::CLOCAL;
+            // Enable raw mode which disables any implicit processing of the input or output data streams
             // This also sets no timeout period and a read will block until at least one character is
             // available.
-            cfmakeraw(&mut termios);
+            unsafe { cfmakeraw(&mut termios) };
 
             // write settings to TTY
-            tcsetattr(fd, TCSANOW, &termios)?;
+            unsafe { tcsetattr(fd, libc::TCSANOW, &termios) };
 
             // Read back settings from port and confirm they were applied correctly
-            let actual_termios = tcgetattr(fd)?;
+            let mut actual_termios = unsafe { mem::uninitialized() };
+            unsafe { tcgetattr(fd, &mut actual_termios) };
 
-            if actual_termios.input_flags != termios.input_flags ||
-               actual_termios.output_flags != termios.output_flags ||
-               actual_termios.local_flags != termios.local_flags ||
-               actual_termios.control_flags != termios.control_flags {
+            if actual_termios.c_iflag != termios.c_iflag ||
+               actual_termios.c_oflag != termios.c_oflag ||
+               actual_termios.c_lflag != termios.c_lflag ||
+               actual_termios.c_cflag != termios.c_cflag {
                 return Err(Error::new(ErrorKind::Unknown, "Settings did not apply correctly"));
             };
 
-            tcflush(fd, TCIOFLUSH)?;
+            unsafe { tcflush(fd, libc::TCIOFLUSH) };
 
             // get exclusive access to device
             ioctl::tiocexcl(fd)?;
@@ -258,12 +256,17 @@ impl TTYPort {
         Ok((master_tty, slave_tty))
     }
 
-    fn get_termios(&self) -> ::Result<Termios> {
-        tcgetattr(self.fd).map_err(|e| e.into())
+    fn get_termios(&self) -> ::Result<libc::termios> {
+        let mut termios = unsafe { mem::uninitialized() };
+        let res = unsafe { libc::tcgetattr(self.fd, &mut termios) };
+        nix::errno::Errno::result(res)?;
+        Ok(termios)
     }
 
-    fn set_termios(&self, termios: &Termios) -> ::Result<()> {
-        tcsetattr(self.fd, TCSANOW, &termios).map_err(|e| e.into())
+    fn set_termios(&self, termios: &libc::termios) -> ::Result<()> {
+        let res = unsafe { libc::tcsetattr(self.fd, libc::TCSANOW, termios) };
+        nix::errno::Errno::result(res)?;
+        Ok(())
     }
 }
 
@@ -360,15 +363,14 @@ impl SerialPort for TTYPort {
     }
 
     fn baud_rate(&self) -> Option<BaudRate> {
-        use nix::sys::termios::{cfgetospeed, cfgetispeed};
-        use nix::sys::termios::BaudRate::*;
+        use self::libc::*;
 
         let termios = match self.get_termios() {
             Ok(t) => t,
             Err(_) => return None,
         };
-        let ospeed = cfgetospeed(&termios);
-        let ispeed = cfgetispeed(&termios);
+        let ospeed = unsafe { libc::cfgetospeed(&termios) };
+        let ispeed = unsafe { libc::cfgetispeed(&termios) };
 
         if ospeed != ispeed {
             return None;
@@ -431,32 +433,27 @@ impl SerialPort for TTYPort {
     }
 
     fn data_bits(&self) -> Option<DataBits> {
-        use nix::sys::termios::ControlFlags;
-
         let termios = match self.get_termios() {
             Ok(t) => t,
             Err(_) => return None,
         };
-        match termios.control_flags & ControlFlags::CSIZE {
-            ControlFlags::CS8 => Some(DataBits::Eight),
-            ControlFlags::CS7 => Some(DataBits::Seven),
-            ControlFlags::CS6 => Some(DataBits::Six),
-            ControlFlags::CS5 => Some(DataBits::Five),
-
+        match termios.c_cflag & libc::CSIZE {
+            libc::CS8 => Some(DataBits::Eight),
+            libc::CS7 => Some(DataBits::Seven),
+            libc::CS6 => Some(DataBits::Six),
+            libc::CS5 => Some(DataBits::Five),
             _ => None,
         }
     }
 
     fn flow_control(&self) -> Option<FlowControl> {
-        use nix::sys::termios::{ControlFlags, InputFlags};
-
         let termios = match self.get_termios() {
             Ok(t) => t,
             Err(_) => return None,
         };
-        if termios.control_flags.contains(ControlFlags::CRTSCTS) {
+        if termios.c_cflag & libc::CRTSCTS == libc::CRTSCTS {
             Some(FlowControl::Hardware)
-        } else if termios.input_flags.intersects(InputFlags::IXON | InputFlags::IXOFF) {
+        } else if termios.c_iflag & (libc::IXON | libc::IXOFF) == (libc::IXON | libc::IXOFF) {
             Some(FlowControl::Software)
         } else {
             Some(FlowControl::None)
@@ -464,14 +461,12 @@ impl SerialPort for TTYPort {
     }
 
     fn parity(&self) -> Option<Parity> {
-        use nix::sys::termios::ControlFlags;
-
         let termios = match self.get_termios() {
             Ok(t) => t,
             Err(_) => return None,
         };
-        if termios.control_flags.contains(ControlFlags::PARENB) {
-            if termios.control_flags.contains(ControlFlags::PARODD) {
+        if termios.c_cflag & libc::PARENB == libc::PARENB {
+            if termios.c_cflag & libc::PARODD == libc::PARODD {
                 Some(Parity::Odd)
             } else {
                 Some(Parity::Even)
@@ -482,13 +477,11 @@ impl SerialPort for TTYPort {
     }
 
     fn stop_bits(&self) -> Option<StopBits> {
-        use nix::sys::termios::ControlFlags;
-
         let termios = match self.get_termios() {
             Ok(t) => t,
             Err(_) => return None,
         };
-        if termios.control_flags.contains(ControlFlags::CSTOPB) {
+        if termios.c_cflag & libc::CSTOPB == libc::CSTOPB {
             Some(StopBits::Two)
         } else {
             Some(StopBits::One)
@@ -511,11 +504,10 @@ impl SerialPort for TTYPort {
     }
 
     fn set_baud_rate(&mut self, baud_rate: BaudRate) -> ::Result<()> {
-        use nix::sys::termios::cfsetspeed;
-        use nix::sys::termios::BaudRate::*;
+        use self::libc::*;
 
         let mut termios = self.get_termios()?;
-        let baud = match baud_rate {
+        let baud_rate = match baud_rate {
             BaudRate::Baud50 => B50,
             BaudRate::Baud75 => B75,
             BaudRate::Baud110 => B110,
@@ -575,79 +567,72 @@ impl SerialPort for TTYPort {
             BaudRate::BaudOther(_) => return Err(nix::Error::from_errno(nix::errno::Errno::EINVAL).into()),
         };
 
-        cfsetspeed(&mut termios, baud)?;
+        let res = unsafe { libc::cfsetspeed(&mut termios, baud_rate) };
+        nix::errno::Errno::result(res)?;
         self.set_termios(&termios)
     }
 
     fn set_data_bits(&mut self, data_bits: DataBits) -> ::Result<()> {
-        use nix::sys::termios::ControlFlags;
-
         let size = match data_bits {
-            DataBits::Five => ControlFlags::CS5,
-            DataBits::Six => ControlFlags::CS6,
-            DataBits::Seven => ControlFlags::CS7,
-            DataBits::Eight => ControlFlags::CS8,
+            DataBits::Five => libc::CS5,
+            DataBits::Six => libc::CS6,
+            DataBits::Seven => libc::CS7,
+            DataBits::Eight => libc::CS8,
         };
 
         let mut termios = self.get_termios()?;
-        termios.control_flags.remove(ControlFlags::CSIZE);
-        termios.control_flags.insert(size);
+        termios.c_cflag &= !libc::CSIZE;
+        termios.c_cflag |= size;
         self.set_termios(&termios)
     }
 
     fn set_flow_control(&mut self, flow_control: FlowControl) -> ::Result<()> {
-        use nix::sys::termios::{ControlFlags, InputFlags};
-
         let mut termios = self.get_termios()?;
         match flow_control {
             FlowControl::None => {
-                termios.input_flags.remove(InputFlags::IXON | InputFlags::IXOFF);
-                termios.control_flags.remove(ControlFlags::CRTSCTS);
+                termios.c_iflag &= !(libc::IXON | libc::IXOFF);
+                termios.c_cflag &= !libc::CRTSCTS;
             }
             FlowControl::Software => {
-                termios.input_flags.insert(InputFlags::IXON | InputFlags::IXOFF);
-                termios.control_flags.remove(ControlFlags::CRTSCTS);
+                termios.c_iflag |= libc::IXON | libc::IXOFF;
+                termios.c_cflag &= libc::CRTSCTS;
             }
             FlowControl::Hardware => {
-                termios.input_flags.remove(InputFlags::IXON | InputFlags::IXOFF);
-                termios.control_flags.insert(ControlFlags::CRTSCTS);
+                termios.c_iflag &= !(libc::IXON | libc::IXOFF);
+                termios.c_cflag |= libc::CRTSCTS;
             }
         };
         self.set_termios(&termios)
     }
 
     fn set_parity(&mut self, parity: Parity) -> ::Result<()> {
-        use nix::sys::termios::{ControlFlags, InputFlags};
-
         let mut termios = self.get_termios()?;
         match parity {
             Parity::None => {
-                termios.control_flags.remove(ControlFlags::PARENB | ControlFlags::PARODD);
-                termios.input_flags.remove(InputFlags::INPCK);
-                termios.input_flags.insert(InputFlags::IGNPAR);
+                termios.c_cflag &= !(libc::PARENB | libc::PARODD);
+                termios.c_iflag &= !libc::INPCK;
+                termios.c_iflag |= libc::IGNPAR;
             }
             Parity::Odd => {
-                termios.control_flags.insert(ControlFlags::PARENB | ControlFlags::PARODD);
-                termios.input_flags.insert(InputFlags::INPCK);
-                termios.input_flags.remove(InputFlags::IGNPAR);
+                termios.c_cflag |= libc::PARENB | libc::PARODD;
+                termios.c_iflag |= libc::INPCK;
+                termios.c_iflag &= !libc::IGNPAR;
             }
             Parity::Even => {
-                termios.control_flags.remove(ControlFlags::PARODD);
-                termios.control_flags.insert(ControlFlags::PARENB);
-                termios.input_flags.insert(InputFlags::INPCK);
-                termios.input_flags.remove(InputFlags::IGNPAR);
+                termios.c_cflag &= !libc::PARODD;
+                termios.c_cflag |= libc::PARENB;
+                termios.c_iflag |= libc::INPCK;
+                termios.c_iflag &= !libc::IGNPAR;
             }
         };
         self.set_termios(&termios)
     }
 
     fn set_stop_bits(&mut self, stop_bits: StopBits) -> ::Result<()> {
-        use nix::sys::termios::ControlFlags;
-
         let mut termios = self.get_termios()?;
         match stop_bits {
-            StopBits::One => termios.control_flags.remove(ControlFlags::CSTOPB),
-            StopBits::Two => termios.control_flags.insert(ControlFlags::CSTOPB),
+            StopBits::One => termios.c_cflag &= !libc::CSTOPB,
+            StopBits::Two => termios.c_cflag |= libc::CSTOPB,
         };
         self.set_termios(&termios)
     }
