@@ -6,6 +6,9 @@ The format is based on http://keepachangelog.com/[Keep a Changelog]
 and this project adheres to http://semver.org/[Semantic Versioning].
 
 === [UNRELEASED]
+==== Added
+* Support arbitrary baud rates on Android and Linux targets
+
 ==== Changed
 * Most port configuration methods now return a `Result<()>`.
 

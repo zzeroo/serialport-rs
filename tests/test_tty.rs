@@ -90,3 +90,21 @@ fn test_ttyport_set_standard_baud() {
     slave.set_baud_rate(115200).unwrap();
     assert_eq!(slave.baud_rate().unwrap(), 115200);
 }
+
+#[cfg(any(target_os = "android", target_os = "linux"))]
+#[test]
+fn test_ttyport_set_nonstandard_baud() {
+    // `master` must be used here as Dropping it causes slave to be deleted by the OS.
+    // TODO: Convert this to a statement-level attribute once
+    //       https://github.com/rust-lang/rust/issues/15701 is on stable.
+    // FIXME: Create a mutex across all tests for using `TTYPort::pair()` as it's not threadsafe
+    #![allow(unused_variables)]
+    let (master, mut slave) = TTYPort::pair().expect("Unable to create ptty pair");
+
+    slave.set_baud_rate(10000).unwrap();
+    assert_eq!(slave.baud_rate().unwrap(), 10000);
+    slave.set_baud_rate(60000).unwrap();
+    assert_eq!(slave.baud_rate().unwrap(), 60000);
+    slave.set_baud_rate(1200000).unwrap();
+    assert_eq!(slave.baud_rate().unwrap(), 1200000);
+}
