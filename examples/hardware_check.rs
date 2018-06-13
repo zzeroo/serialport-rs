@@ -58,7 +58,7 @@ fn main() {
 }
 
 macro_rules! baud_rate_check {
-    ( $port:ident, $baud:path ) => {
+    ( $port:ident, $baud:expr ) => {
         let baud_rate = $baud;
         if let Err(e) = $port.set_baud_rate(baud_rate) {
             println!("  {:?}: FAILED ({})", baud_rate, e);
@@ -150,9 +150,9 @@ fn test_single_port(port: &mut serialport::SerialPort, loopback: bool) {
 
     // Test setting standard baud rates
     println!("Testing baud rates...");
-    baud_rate_check!(port, BaudRate::Baud9600);
-    baud_rate_check!(port, BaudRate::Baud38400);
-    baud_rate_check!(port, BaudRate::Baud115200);
+    baud_rate_check!(port, 9600);
+    baud_rate_check!(port, 38400);
+    baud_rate_check!(port, 115200);
 
     // Test setting the data bits
     println!("Testing data bits...");
@@ -215,7 +215,7 @@ fn test_dual_ports(port1: &mut serialport::SerialPort, port2: &mut serialport::S
     // Make sure both ports are set to sane defaults
     let mut port_settings: SerialPortSettings = Default::default();
     port_settings.timeout = Duration::from_millis(100);
-    port_settings.baud_rate = BaudRate::Baud115200;
+    port_settings.baud_rate = 115200;
     port1.set_all(&port_settings).expect("Resetting port1 to sane defaults failed");
     port2.set_all(&port_settings).expect("Resetting port2 to sane defaults failed");
 
@@ -237,8 +237,8 @@ fn test_dual_ports(port1: &mut serialport::SerialPort, port2: &mut serialport::S
                    "Received message does not match sent");
         println!("success");
     }
-    port1.set_baud_rate(BaudRate::Baud57600).expect("Setting port1's baud rate to 57600 failed");
-    port2.set_baud_rate(BaudRate::Baud57600).expect("Setting port2's baud rate to 57600 failed");
+    port1.set_baud_rate(57600).expect("Setting port1's baud rate to 57600 failed");
+    port2.set_baud_rate(57600).expect("Setting port2's baud rate to 57600 failed");
     print!("     At 57600,8,n,1,noflow...");
     let nbytes = port1.write(msg.as_bytes()).expect("Unable to write bytes.");
     assert_eq!(nbytes,
@@ -252,8 +252,8 @@ fn test_dual_ports(port1: &mut serialport::SerialPort, port2: &mut serialport::S
                    "Received message does not match sent");
         println!("success");
     }
-    port1.set_baud_rate(BaudRate::Baud9600).expect("Setting port1's baud rate to 9600 failed");
-    port2.set_baud_rate(BaudRate::Baud9600).expect("Setting port2's baud rate to 9600 failed");
+    port1.set_baud_rate(9600).expect("Setting port1's baud rate to 9600 failed");
+    port2.set_baud_rate(9600).expect("Setting port2's baud rate to 9600 failed");
     print!("     At 9600,8,n,1,noflow...");
     let nbytes = port1.write(msg.as_bytes()).expect("Unable to write bytes.");
     assert_eq!(nbytes,
@@ -303,8 +303,8 @@ fn test_dual_ports(port1: &mut serialport::SerialPort, port2: &mut serialport::S
     // Test sending strings from port2 to port1
     port1.set_flow_control(FlowControl::None).unwrap();
     port2.set_flow_control(FlowControl::None).unwrap();
-    port1.set_baud_rate(BaudRate::Baud115200).expect("Setting port1's baud rate to 115200 failed");
-    port2.set_baud_rate(BaudRate::Baud115200).expect("Setting port2's baud rate to 115200 failed");
+    port1.set_baud_rate(115200).expect("Setting port1's baud rate to 115200 failed");
+    port2.set_baud_rate(115200).expect("Setting port2's baud rate to 115200 failed");
     println!("  Transmitting from {} to {}...", port2.port_name().unwrap(), port1.port_name().unwrap());
     print!("     At 115200,8,n,1,noflow...");
     let nbytes = port2.write(msg.as_bytes()).expect("Unable to write bytes.");
@@ -319,8 +319,8 @@ fn test_dual_ports(port1: &mut serialport::SerialPort, port2: &mut serialport::S
                    "Received message does not match sent");
         println!("success");
     }
-    port1.set_baud_rate(BaudRate::Baud57600).expect("Setting port1's baud rate to 57600 failed");
-    port2.set_baud_rate(BaudRate::Baud57600).expect("Setting port2's baud rate to 57600 failed");
+    port1.set_baud_rate(57600).expect("Setting port1's baud rate to 57600 failed");
+    port2.set_baud_rate(57600).expect("Setting port2's baud rate to 57600 failed");
     print!("     At 57600,8,n,1,noflow...");
     let nbytes = port2.write(msg.as_bytes()).expect("Unable to write bytes.");
     assert_eq!(nbytes,
@@ -334,8 +334,8 @@ fn test_dual_ports(port1: &mut serialport::SerialPort, port2: &mut serialport::S
                    "Received message does not match sent");
         println!("success");
     }
-    port1.set_baud_rate(BaudRate::Baud9600).expect("Setting port1's baud rate to 9600 failed");
-    port2.set_baud_rate(BaudRate::Baud9600).expect("Setting port2's baud rate to 9600 failed");
+    port1.set_baud_rate(9600).expect("Setting port1's baud rate to 9600 failed");
+    port2.set_baud_rate(9600).expect("Setting port2's baud rate to 9600 failed");
     print!("     At 9600,8,n,1,noflow...");
     let nbytes = port2.write(msg.as_bytes()).expect("Unable to write bytes.");
     assert_eq!(nbytes,

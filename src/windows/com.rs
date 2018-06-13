@@ -20,7 +20,7 @@ use winapi::um::winbase::*;
 use winapi::um::winnt::{DUPLICATE_SAME_ACCESS, FILE_ATTRIBUTE_NORMAL, GENERIC_READ, GENERIC_WRITE, HANDLE, KEY_READ};
 use winapi::um::winreg::*;
 
-use {BaudRate, DataBits, FlowControl, Parity, SerialPort, SerialPortInfo, SerialPortSettings,
+use {DataBits, FlowControl, Parity, SerialPort, SerialPortInfo, SerialPortSettings,
      StopBits};
 use {Error, ErrorKind};
 
@@ -269,27 +269,27 @@ impl SerialPort for COMPort {
         self.read_pin(MS_RLSD_ON)
     }
 
-    fn baud_rate(&self) -> Option<BaudRate> {
+    fn baud_rate(&self) -> Option<u32> {
         let dcb = match self.get_dcb() {
             Ok(d) => d,
             Err(_) => return None,
         };
         match dcb.BaudRate {
-            CBR_110 => Some(BaudRate::Baud110),
-            CBR_300 => Some(BaudRate::Baud300),
-            CBR_600 => Some(BaudRate::Baud600),
-            CBR_1200 => Some(BaudRate::Baud1200),
-            CBR_2400 => Some(BaudRate::Baud2400),
-            CBR_4800 => Some(BaudRate::Baud4800),
-            CBR_9600 => Some(BaudRate::Baud9600),
-            CBR_14400 => Some(BaudRate::Baud14400),
-            CBR_19200 => Some(BaudRate::Baud19200),
-            CBR_38400 => Some(BaudRate::Baud38400),
-            CBR_57600 => Some(BaudRate::Baud57600),
-            CBR_115200 => Some(BaudRate::Baud115200),
-            CBR_128000 => Some(BaudRate::Baud128000),
-            CBR_256000 => Some(BaudRate::Baud256000),
-            n => Some(BaudRate::BaudOther(n as u32)),
+            CBR_110 => Some(110),
+            CBR_300 => Some(300),
+            CBR_600 => Some(600),
+            CBR_1200 => Some(1200),
+            CBR_2400 => Some(2400),
+            CBR_4800 => Some(4800),
+            CBR_9600 => Some(9600),
+            CBR_14400 => Some(14400),
+            CBR_19200 => Some(19200),
+            CBR_38400 => Some(38400),
+            CBR_57600 => Some(57600),
+            CBR_115200 => Some(115200),
+            CBR_128000 => Some(128000),
+            CBR_256000 => Some(256000),
+            n => Some(n as u32),
         }
     }
 
@@ -357,24 +357,24 @@ impl SerialPort for COMPort {
         Ok(())
     }
 
-    fn set_baud_rate(&mut self, baud_rate: BaudRate) -> ::Result<()> {
+    fn set_baud_rate(&mut self, baud_rate: u32) -> ::Result<()> {
         let mut dcb = self.get_dcb()?;
         dcb.BaudRate = match baud_rate {
-            BaudRate::Baud110 => CBR_110,
-            BaudRate::Baud300 => CBR_300,
-            BaudRate::Baud600 => CBR_600,
-            BaudRate::Baud1200 => CBR_1200,
-            BaudRate::Baud2400 => CBR_2400,
-            BaudRate::Baud4800 => CBR_4800,
-            BaudRate::Baud9600 => CBR_9600,
-            BaudRate::Baud14400 => CBR_14400,
-            BaudRate::Baud19200 => CBR_19200,
-            BaudRate::Baud38400 => CBR_38400,
-            BaudRate::Baud57600 => CBR_57600,
-            BaudRate::Baud115200 => CBR_115200,
-            BaudRate::Baud128000 => CBR_128000,
-            BaudRate::Baud256000 => CBR_256000,
-            BaudRate::BaudOther(n) => n as DWORD,
+            110 => CBR_110,
+            300 => CBR_300,
+            600 => CBR_600,
+            1200 => CBR_1200,
+            2400 => CBR_2400,
+            4800 => CBR_4800,
+            9600 => CBR_9600,
+            14400 => CBR_14400,
+            19200 => CBR_19200,
+            38400 => CBR_38400,
+            57600 => CBR_57600,
+            115200 => CBR_115200,
+            128000 => CBR_128000,
+            256000 => CBR_256000,
+            n => n as DWORD,
         };
 
         self.set_dcb(&dcb)

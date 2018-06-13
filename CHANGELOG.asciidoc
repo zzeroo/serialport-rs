@@ -6,6 +6,8 @@ The format is based on http://keepachangelog.com/[Keep a Changelog]
 and this project adheres to http://semver.org/[Semantic Versioning].
 
 === [UNRELEASED]
+==== Removed
+* The `BaudRate` enum was removed in favor of a `u32`.
 
 === [2.3.0] - 2018-03-13
 ==== Added

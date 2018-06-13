@@ -19,7 +19,7 @@ use libudev;
 use nix::{self, libc, unistd};
 use nix::fcntl::fcntl;
 
-use {BaudRate, DataBits, FlowControl, Parity, SerialPort, SerialPortInfo, SerialPortSettings,
+use {DataBits, FlowControl, Parity, SerialPort, SerialPortInfo, SerialPortSettings,
      SerialPortType, StopBits, UsbPortInfo};
 use {Error, ErrorKind};
 
@@ -362,7 +362,7 @@ impl SerialPort for TTYPort {
         }
     }
 
-    fn baud_rate(&self) -> Option<BaudRate> {
+    fn baud_rate(&self) -> Option<u32> {
         use self::libc::*;
 
         let termios = match self.get_termios() {
@@ -377,57 +377,57 @@ impl SerialPort for TTYPort {
         }
 
         match (ospeed as nix::libc::speed_t).into() {
-            B50 => Some(BaudRate::Baud50),
-            B75 => Some(BaudRate::Baud75),
-            B110 => Some(BaudRate::Baud110),
-            B134 => Some(BaudRate::Baud134),
-            B150 => Some(BaudRate::Baud150),
-            B200 => Some(BaudRate::Baud200),
-            B300 => Some(BaudRate::Baud300),
-            B600 => Some(BaudRate::Baud600),
-            B1200 => Some(BaudRate::Baud1200),
-            B1800 => Some(BaudRate::Baud1800),
-            B2400 => Some(BaudRate::Baud2400),
-            B4800 => Some(BaudRate::Baud4800),
+            B50 => Some(50),
+            B75 => Some(75),
+            B110 => Some(110),
+            B134 => Some(134),
+            B150 => Some(150),
+            B200 => Some(200),
+            B300 => Some(300),
+            B600 => Some(600),
+            B1200 => Some(1200),
+            B1800 => Some(1800),
+            B2400 => Some(2400),
+            B4800 => Some(4800),
             #[cfg(any(target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
-            B7200 => Some(BaudRate::Baud7200),
-            B9600 => Some(BaudRate::Baud9600),
+            B7200 => Some(7200),
+            B9600 => Some(9600),
             #[cfg(any(target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
-            B14400 => Some(BaudRate::Baud14400),
-            B19200 => Some(BaudRate::Baud19200),
+            B14400 => Some(14400),
+            B19200 => Some(19200),
             #[cfg(any(target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
-            B28800 => Some(BaudRate::Baud28800),
-            B38400 => Some(BaudRate::Baud38400),
-            B57600 => Some(BaudRate::Baud57600),
+            B28800 => Some(28800),
+            B38400 => Some(38400),
+            B57600 => Some(57600),
             #[cfg(any(target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
-            B76800 => Some(BaudRate::Baud76800),
-            B115200 => Some(BaudRate::Baud115200),
-            B230400 => Some(BaudRate::Baud230400),
+            B76800 => Some(76800),
+            B115200 => Some(115200),
+            B230400 => Some(230400),
             #[cfg(any(target_os = "android", target_os = "linux", target_os = "freebsd"))]
-            B460800 => Some(BaudRate::Baud460800),
+            B460800 => Some(460800),
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            B500000 => Some(BaudRate::Baud500000),
+            B500000 => Some(500000),
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            B576000 => Some(BaudRate::Baud576000),
+            B576000 => Some(576000),
             // FIXME: Re-enable Baud921600 once nix > 0.10.0 is released
             #[cfg(any(target_os = "android", target_os = "freebsd", target_os = "linux", target_os = "netbsd"))]
-            B921600 => Some(BaudRate::BaudOther(921_600)),
+            B921600 => Some(921_600),
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            B1000000 => Some(BaudRate::Baud1000000),
+            B1000000 => Some(1000000),
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            B1152000 => Some(BaudRate::Baud1152000),
+            B1152000 => Some(1152000),
             #[cfg(any(target_os = "android",target_os = "linux"))]
-            B1500000 => Some(BaudRate::Baud1500000),
+            B1500000 => Some(1500000),
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            B2000000 => Some(BaudRate::Baud2000000),
+            B2000000 => Some(2000000),
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            B2500000 => Some(BaudRate::Baud2500000),
+            B2500000 => Some(2500000),
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            B3000000 => Some(BaudRate::Baud3000000),
+            B3000000 => Some(3000000),
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            B3500000 => Some(BaudRate::Baud3500000),
+            B3500000 => Some(3500000),
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            B4000000 => Some(BaudRate::Baud4000000),
+            B4000000 => Some(4000000),
             _ => None,
         }
     }
@@ -503,68 +503,67 @@ impl SerialPort for TTYPort {
         Ok(())
     }
 
-    fn set_baud_rate(&mut self, baud_rate: BaudRate) -> ::Result<()> {
+    fn set_baud_rate(&mut self, baud_rate: u32) -> ::Result<()> {
         use self::libc::*;
 
         let mut termios = self.get_termios()?;
         let baud_rate = match baud_rate {
-            BaudRate::Baud50 => B50,
-            BaudRate::Baud75 => B75,
-            BaudRate::Baud110 => B110,
-            BaudRate::Baud134 => B134,
-            BaudRate::Baud150 => B150,
-            BaudRate::Baud200 => B200,
-            BaudRate::Baud300 => B300,
-            BaudRate::Baud600 => B600,
-            BaudRate::Baud1200 => B1200,
-            BaudRate::Baud1800 => B1800,
-            BaudRate::Baud2400 => B2400,
-            BaudRate::Baud4800 => B4800,
+            50 => B50,
+            75 => B75,
+            110 => B110,
+            134 => B134,
+            150 => B150,
+            200 => B200,
+            300 => B300,
+            600 => B600,
+            1200 => B1200,
+            1800 => B1800,
+            2400 => B2400,
+            4800 => B4800,
             #[cfg(any(target_os = "freebsd", target_os = "dragonfly", target_os = "macos",
                         target_os = "netbsd", target_os = "openbsd"))]
-            BaudRate::Baud7200 => B7200,
-            BaudRate::Baud9600 => B9600,
+            7200 => B7200,
+            9600 => B9600,
             #[cfg(any(target_os = "freebsd", target_os = "dragonfly", target_os = "macos",
                         target_os = "netbsd", target_os = "openbsd"))]
-            BaudRate::Baud14400 => B14400,
-            BaudRate::Baud19200 => B19200,
+            14400 => B14400,
+            19200 => B19200,
             #[cfg(any(target_os = "freebsd", target_os = "dragonfly", target_os = "macos",
                         target_os = "netbsd", target_os = "openbsd"))]
-            BaudRate::Baud28800 => B28800,
-            BaudRate::Baud38400 => B38400,
-            BaudRate::Baud57600 => B57600,
+            28800 => B28800,
+            38400 => B38400,
+            57600 => B57600,
             #[cfg(any(target_os = "freebsd", target_os = "dragonfly", target_os = "macos",
                         target_os = "netbsd", target_os = "openbsd"))]
-            BaudRate::Baud76800 => B76800,
-            BaudRate::Baud115200 => B115200,
-            BaudRate::Baud230400 => B230400,
+            76800 => B76800,
+            115200 => B115200,
+            230400 => B230400,
             #[cfg(any(target_os = "android", target_os = "freebsd", target_os = "linux"))]
-            BaudRate::Baud460800 => B460800,
+            460800 => B460800,
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            BaudRate::Baud500000 => B500000,
+            500000 => B500000,
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            BaudRate::Baud576000 => B576000,
+            576000 => B576000,
             // FIXME: Re-enable Baud921600 for FreeBSD & NetBSD once nix > 0.10.0 is released
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            BaudRate::Baud921600 => B921600,
+            921600 => B921600,
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            BaudRate::Baud1000000 => B1000000,
+            1000000 => B1000000,
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            BaudRate::Baud1152000 => B1152000,
+            1152000 => B1152000,
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            BaudRate::Baud1500000 => B1500000,
+            1500000 => B1500000,
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            BaudRate::Baud2000000 => B2000000,
+            2000000 => B2000000,
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            BaudRate::Baud2500000 => B2500000,
+            2500000 => B2500000,
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            BaudRate::Baud3000000 => B3000000,
+            3000000 => B3000000,
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            BaudRate::Baud3500000 => B3500000,
+            3500000 => B3500000,
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            BaudRate::Baud4000000 => B4000000,
-
-            BaudRate::BaudOther(_) => return Err(nix::Error::from_errno(nix::errno::Errno::EINVAL).into()),
+            4000000 => B4000000,
+            _ => return Err(nix::Error::from_errno(nix::errno::Errno::EINVAL).into()),
         };
 
         let res = unsafe { libc::cfsetspeed(&mut termios, baud_rate) };
