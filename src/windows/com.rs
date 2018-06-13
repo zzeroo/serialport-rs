@@ -269,80 +269,74 @@ impl SerialPort for COMPort {
         self.read_pin(MS_RLSD_ON)
     }
 
-    fn baud_rate(&self) -> Option<u32> {
-        let dcb = match self.get_dcb() {
-            Ok(d) => d,
-            Err(_) => return None,
-        };
+    fn baud_rate(&self) -> ::Result<u32> {
+        let dcb = self.get_dcb()?;
         match dcb.BaudRate {
-            CBR_110 => Some(110),
-            CBR_300 => Some(300),
-            CBR_600 => Some(600),
-            CBR_1200 => Some(1200),
-            CBR_2400 => Some(2400),
-            CBR_4800 => Some(4800),
-            CBR_9600 => Some(9600),
-            CBR_14400 => Some(14400),
-            CBR_19200 => Some(19200),
-            CBR_38400 => Some(38400),
-            CBR_57600 => Some(57600),
-            CBR_115200 => Some(115200),
-            CBR_128000 => Some(128000),
-            CBR_256000 => Some(256000),
-            n => Some(n as u32),
+            CBR_110 => Ok(110),
+            CBR_300 => Ok(300),
+            CBR_600 => Ok(600),
+            CBR_1200 => Ok(1200),
+            CBR_2400 => Ok(2400),
+            CBR_4800 => Ok(4800),
+            CBR_9600 => Ok(9600),
+            CBR_14400 => Ok(14400),
+            CBR_19200 => Ok(19200),
+            CBR_38400 => Ok(38400),
+            CBR_57600 => Ok(57600),
+            CBR_115200 => Ok(115200),
+            CBR_128000 => Ok(128000),
+            CBR_256000 => Ok(256000),
+            n => Ok(n as u32),
         }
     }
 
-    fn data_bits(&self) -> Option<DataBits> {
-        let dcb = match self.get_dcb() {
-            Ok(d) => d,
-            Err(_) => return None,
-        };
+    fn data_bits(&self) -> ::Result<DataBits> {
+        let dcb = self.get_dcb()?;
         match dcb.ByteSize {
-            5 => Some(DataBits::Five),
-            6 => Some(DataBits::Six),
-            7 => Some(DataBits::Seven),
-            8 => Some(DataBits::Eight),
-            _ => None,
+            5 => Ok(DataBits::Five),
+            6 => Ok(DataBits::Six),
+            7 => Ok(DataBits::Seven),
+            8 => Ok(DataBits::Eight),
+            _ => Err(Error::new(
+                ErrorKind::Unknown,
+                "Invalid data bits setting encountered",
+            )),
         }
     }
 
-    fn parity(&self) -> Option<Parity> {
-        let dcb = match self.get_dcb() {
-            Ok(d) => d,
-            Err(_) => return None,
-        };
+    fn parity(&self) -> ::Result<Parity> {
+        let dcb = self.get_dcb()?;
         match dcb.Parity {
-            ODDPARITY => Some(Parity::Odd),
-            EVENPARITY => Some(Parity::Even),
-            NOPARITY => Some(Parity::None),
-            _ => None,
+            ODDPARITY => Ok(Parity::Odd),
+            EVENPARITY => Ok(Parity::Even),
+            NOPARITY => Ok(Parity::None),
+            _ => Err(Error::new(
+                ErrorKind::Unknown,
+                "Invalid parity setting encountered",
+            )),
         }
     }
 
-    fn stop_bits(&self) -> Option<StopBits> {
-        let dcb = match self.get_dcb() {
-            Ok(d) => d,
-            Err(_) => return None,
-        };
+    fn stop_bits(&self) -> ::Result<StopBits> {
+        let dcb = self.get_dcb()?;
         match dcb.StopBits {
-            TWOSTOPBITS => Some(StopBits::Two),
-            ONESTOPBIT => Some(StopBits::One),
-            _ => None,
+            TWOSTOPBITS => Ok(StopBits::Two),
+            ONESTOPBIT => Ok(StopBits::One),
+            _ => Err(Error::new(
+                ErrorKind::Unknown,
+                "Invalid stop bits setting encountered",
+            )),
         }
     }
 
-    fn flow_control(&self) -> Option<FlowControl> {
-        let dcb = match self.get_dcb() {
-            Ok(d) => d,
-            Err(_) => return None,
-        };
+    fn flow_control(&self) -> ::Result<FlowControl> {
+        let dcb = self.get_dcb()?;
         if dcb.fOutxCtsFlow() != 0 || dcb.fRtsControl() != 0 {
-            Some(FlowControl::Hardware)
+            Ok(FlowControl::Hardware)
         } else if dcb.fOutX() != 0 || dcb.fInX() != 0 {
-            Some(FlowControl::Software)
+            Ok(FlowControl::Software)
         } else {
-            Some(FlowControl::None)
+            Ok(FlowControl::None)
         }
     }
 

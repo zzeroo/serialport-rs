@@ -362,129 +362,120 @@ impl SerialPort for TTYPort {
         }
     }
 
-    fn baud_rate(&self) -> Option<u32> {
+    fn baud_rate(&self) -> ::Result<u32> {
         use self::libc::*;
 
-        let termios = match self.get_termios() {
-            Ok(t) => t,
-            Err(_) => return None,
-        };
+        let termios = self.get_termios()?;
+
         let ospeed = unsafe { libc::cfgetospeed(&termios) };
         let ispeed = unsafe { libc::cfgetispeed(&termios) };
 
-        if ospeed != ispeed {
-            return None;
-        }
+        assert!(ospeed == ispeed);
 
         match (ospeed as nix::libc::speed_t).into() {
-            B50 => Some(50),
-            B75 => Some(75),
-            B110 => Some(110),
-            B134 => Some(134),
-            B150 => Some(150),
-            B200 => Some(200),
-            B300 => Some(300),
-            B600 => Some(600),
-            B1200 => Some(1200),
-            B1800 => Some(1800),
-            B2400 => Some(2400),
-            B4800 => Some(4800),
+            B50 => Ok(50),
+            B75 => Ok(75),
+            B110 => Ok(110),
+            B134 => Ok(134),
+            B150 => Ok(150),
+            B200 => Ok(200),
+            B300 => Ok(300),
+            B600 => Ok(600),
+            B1200 => Ok(1200),
+            B1800 => Ok(1800),
+            B2400 => Ok(2400),
+            B4800 => Ok(4800),
             #[cfg(any(target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
-            B7200 => Some(7200),
-            B9600 => Some(9600),
+            B7200 => Ok(7200),
+            B9600 => Ok(9600),
             #[cfg(any(target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
-            B14400 => Some(14400),
-            B19200 => Some(19200),
+            B14400 => Ok(14400),
+            B19200 => Ok(19200),
             #[cfg(any(target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
-            B28800 => Some(28800),
-            B38400 => Some(38400),
-            B57600 => Some(57600),
+            B28800 => Ok(28800),
+            B38400 => Ok(38400),
+            B57600 => Ok(57600),
             #[cfg(any(target_os = "macos", target_os = "freebsd", target_os = "openbsd"))]
-            B76800 => Some(76800),
-            B115200 => Some(115200),
-            B230400 => Some(230400),
+            B76800 => Ok(76800),
+            B115200 => Ok(115200),
+            B230400 => Ok(230400),
             #[cfg(any(target_os = "android", target_os = "linux", target_os = "freebsd"))]
-            B460800 => Some(460800),
+            B460800 => Ok(460800),
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            B500000 => Some(500000),
+            B500000 => Ok(500000),
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            B576000 => Some(576000),
+            B576000 => Ok(576000),
             // FIXME: Re-enable Baud921600 once nix > 0.10.0 is released
             #[cfg(any(target_os = "android", target_os = "freebsd", target_os = "linux", target_os = "netbsd"))]
-            B921600 => Some(921_600),
+            B921600 => Ok(921_600),
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            B1000000 => Some(1000000),
+            B1000000 => Ok(1000000),
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            B1152000 => Some(1152000),
+            B1152000 => Ok(1152000),
             #[cfg(any(target_os = "android",target_os = "linux"))]
-            B1500000 => Some(1500000),
+            B1500000 => Ok(1500000),
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            B2000000 => Some(2000000),
+            B2000000 => Ok(2000000),
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            B2500000 => Some(2500000),
+            B2500000 => Ok(2500000),
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            B3000000 => Some(3000000),
+            B3000000 => Ok(3000000),
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            B3500000 => Some(3500000),
+            B3500000 => Ok(3500000),
             #[cfg(any(target_os = "android", target_os = "linux"))]
-            B4000000 => Some(4000000),
-            _ => None,
+            B4000000 => Ok(4000000),
+            _ => Err(Error::new(
+                    ErrorKind::Unknown,
+                    "Invalid baud rate setting encountered",
+            )),
         }
     }
 
-    fn data_bits(&self) -> Option<DataBits> {
-        let termios = match self.get_termios() {
-            Ok(t) => t,
-            Err(_) => return None,
-        };
+    fn data_bits(&self) -> ::Result<DataBits> {
+        let termios = self.get_termios()?;
         match termios.c_cflag & libc::CSIZE {
-            libc::CS8 => Some(DataBits::Eight),
-            libc::CS7 => Some(DataBits::Seven),
-            libc::CS6 => Some(DataBits::Six),
-            libc::CS5 => Some(DataBits::Five),
-            _ => None,
+            libc::CS8 => Ok(DataBits::Eight),
+            libc::CS7 => Ok(DataBits::Seven),
+            libc::CS6 => Ok(DataBits::Six),
+            libc::CS5 => Ok(DataBits::Five),
+            _ => Err(Error::new(
+                    ErrorKind::Unknown,
+                    "Invalid data bits setting encountered",
+            )),
+
         }
     }
 
-    fn flow_control(&self) -> Option<FlowControl> {
-        let termios = match self.get_termios() {
-            Ok(t) => t,
-            Err(_) => return None,
-        };
+    fn flow_control(&self) -> ::Result<FlowControl> {
+        let termios = self.get_termios()?;
         if termios.c_cflag & libc::CRTSCTS == libc::CRTSCTS {
-            Some(FlowControl::Hardware)
+            Ok(FlowControl::Hardware)
         } else if termios.c_iflag & (libc::IXON | libc::IXOFF) == (libc::IXON | libc::IXOFF) {
-            Some(FlowControl::Software)
+            Ok(FlowControl::Software)
         } else {
-            Some(FlowControl::None)
+            Ok(FlowControl::None)
         }
     }
 
-    fn parity(&self) -> Option<Parity> {
-        let termios = match self.get_termios() {
-            Ok(t) => t,
-            Err(_) => return None,
-        };
+    fn parity(&self) -> ::Result<Parity> {
+        let termios = self.get_termios()?;
         if termios.c_cflag & libc::PARENB == libc::PARENB {
             if termios.c_cflag & libc::PARODD == libc::PARODD {
-                Some(Parity::Odd)
+                Ok(Parity::Odd)
             } else {
-                Some(Parity::Even)
+                Ok(Parity::Even)
             }
         } else {
-            Some(Parity::None)
+            Ok(Parity::None)
         }
     }
 
-    fn stop_bits(&self) -> Option<StopBits> {
-        let termios = match self.get_termios() {
-            Ok(t) => t,
-            Err(_) => return None,
-        };
+    fn stop_bits(&self) -> ::Result<StopBits> {
+        let termios = self.get_termios()?;
         if termios.c_cflag & libc::CSTOPB == libc::CSTOPB {
-            Some(StopBits::Two)
+            Ok(StopBits::Two)
         } else {
-            Some(StopBits::One)
+            Ok(StopBits::One)
         }
     }
 

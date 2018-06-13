@@ -269,7 +269,7 @@ pub trait SerialPort: Send + io::Read + io::Write {
     /// This function returns `None` if the baud rate could not be determined. This may occur if
     /// the hardware is in an uninitialized state. Setting a baud rate with `set_baud_rate()`
     /// should initialize the baud rate to a supported value.
-    fn baud_rate(&self) -> Option<u32>;
+    fn baud_rate(&self) -> ::Result<u32>;
 
     /// Returns the character size.
     ///
@@ -277,7 +277,7 @@ pub trait SerialPort: Send + io::Read + io::Write {
     /// if the hardware is in an uninitialized state or is using a non-standard character size.
     /// Setting a baud rate with `set_char_size()` should initialize the character size to a
     /// supported value.
-    fn data_bits(&self) -> Option<DataBits>;
+    fn data_bits(&self) -> ::Result<DataBits>;
 
     /// Returns the flow control mode.
     ///
@@ -285,14 +285,14 @@ pub trait SerialPort: Send + io::Read + io::Write {
     /// occur if the hardware is in an uninitialized state or is using an unsupported flow control
     /// mode. Setting a flow control mode with `set_flow_control()` should initialize the flow
     /// control mode to a supported value.
-    fn flow_control(&self) -> Option<FlowControl>;
+    fn flow_control(&self) -> ::Result<FlowControl>;
 
     /// Returns the parity-checking mode.
     ///
     /// This function returns `None` if the parity mode could not be determined. This may occur if
     /// the hardware is in an uninitialized state or is using a non-standard parity mode. Setting
     /// a parity mode with `set_parity()` should initialize the parity mode to a supported value.
-    fn parity(&self) -> Option<Parity>;
+    fn parity(&self) -> ::Result<Parity>;
 
     /// Returns the number of stop bits.
     ///
@@ -300,7 +300,7 @@ pub trait SerialPort: Send + io::Read + io::Write {
     /// occur if the hardware is in an uninitialized state or is using an unsupported stop bit
     /// configuration. Setting the number of stop bits with `set_stop-bits()` should initialize the
     /// stop bits to a supported value.
-    fn stop_bits(&self) -> Option<StopBits>;
+    fn stop_bits(&self) -> ::Result<StopBits>;
 
     /// Returns the current timeout.
     fn timeout(&self) -> Duration;
