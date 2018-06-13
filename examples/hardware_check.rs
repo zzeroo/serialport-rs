@@ -154,6 +154,12 @@ fn test_single_port(port: &mut serialport::SerialPort, loopback: bool) {
     baud_rate_check!(port, 38400);
     baud_rate_check!(port, 115200);
 
+    // Test setting non-standard baud rates
+    println!("Testing non-standard baud rates...");
+    baud_rate_check!(port, 10000);
+    baud_rate_check!(port, 600000);
+    baud_rate_check!(port, 1800000);
+
     // Test setting the data bits
     println!("Testing data bits...");
     data_bits_check!(port, DataBits::Five);
@@ -240,6 +246,21 @@ fn test_dual_ports(port1: &mut serialport::SerialPort, port2: &mut serialport::S
     port1.set_baud_rate(57600).expect("Setting port1's baud rate to 57600 failed");
     port2.set_baud_rate(57600).expect("Setting port2's baud rate to 57600 failed");
     print!("     At 57600,8,n,1,noflow...");
+    let nbytes = port1.write(msg.as_bytes()).expect("Unable to write bytes.");
+    assert_eq!(nbytes,
+               msg.len(),
+               "Write message length differs from sent message.");
+    if port2.read_exact(&mut buf).is_err() {
+        println!("FAILED");
+    } else {
+        assert_eq!(str::from_utf8(&buf).unwrap(),
+                   msg,
+                   "Received message does not match sent");
+        println!("success");
+    }
+    port1.set_baud_rate(10000).expect("Setting port1's baud rate to 10000 failed");
+    port2.set_baud_rate(10000).expect("Setting port2's baud rate to 10000 failed");
+    print!("     At 10000,8,n,1,noflow...");
     let nbytes = port1.write(msg.as_bytes()).expect("Unable to write bytes.");
     assert_eq!(nbytes,
                msg.len(),
