@@ -256,6 +256,8 @@ impl TTYPort {
         Ok((master_tty, slave_tty))
     }
 
+    #[cfg(any(target_os = "dragonflybsd", target_os = "freebsd", target_os = "ios",
+          target_os = "macos", target_os = "netbsd", target_os = "openbsd"))]
     fn get_termios(&self) -> ::Result<libc::termios> {
         let mut termios = unsafe { mem::uninitialized() };
         let res = unsafe { libc::tcgetattr(self.fd, &mut termios) };
@@ -263,11 +265,24 @@ impl TTYPort {
         Ok(termios)
     }
 
+    #[cfg(any(target_os = "android", target_os = "linux"))]
+    fn get_termios(&self) -> ::Result<libc::termios2> {
+        ioctl::tcgets2(self.fd)
+    }
+
+    #[cfg(any(target_os = "dragonflybsd", target_os = "freebsd", target_os = "ios",
+          target_os = "macos", target_os = "netbsd", target_os = "openbsd"))]
     fn set_termios(&self, termios: &libc::termios) -> ::Result<()> {
         let res = unsafe { libc::tcsetattr(self.fd, libc::TCSANOW, termios) };
         nix::errno::Errno::result(res)?;
         Ok(())
     }
+
+    #[cfg(any(target_os = "android", target_os = "linux"))]
+    fn set_termios(&self, termios2: &libc::termios2) -> ::Result<()> {
+        ioctl::tcsets2(self.fd, &termios2)
+    }
+
 }
 
 impl Drop for TTYPort {
@@ -362,17 +377,71 @@ impl SerialPort for TTYPort {
         }
     }
 
+    /// Returns the port's baud rate
+    ///
+    /// On some platforms this will be the actual device baud rate, which may differ from the
+    /// desired baud rate.
+    #[cfg(any(target_os = "android", target_os = "linux"))]
+    fn baud_rate(&self) -> ::Result<u32> {
+        let termios = self.get_termios()?;
+        let ospeed = termios.c_ospeed;
+
+        assert!(ospeed == termios.c_ispeed);
+
+        match Into::<u32>::into(ospeed) {
+            50 => Ok(50),
+            75 => Ok(75),
+            110 => Ok(110),
+            134 => Ok(134),
+            150 => Ok(150),
+            200 => Ok(200),
+            300 => Ok(300),
+            600 => Ok(600),
+            1200 => Ok(1200),
+            1800 => Ok(1800),
+            2400 => Ok(2400),
+            4800 => Ok(4800),
+            9600 => Ok(9600),
+            19200 => Ok(19200),
+            38400 => Ok(38400),
+            57600 => Ok(57600),
+            115200 => Ok(115200),
+            230400 => Ok(230400),
+            460800 => Ok(460800),
+            500000 => Ok(500000),
+            576000 => Ok(576000),
+            921600 => Ok(921600),
+            1000000 => Ok(1000000),
+            1152000 => Ok(1152000),
+            1500000 => Ok(1500000),
+            2000000 => Ok(2000000),
+            2500000 => Ok(2500000),
+            3000000 => Ok(3000000),
+            3500000 => Ok(3500000),
+            4000000 => Ok(4000000),
+            _ => Err(Error::new(
+                    ErrorKind::Unknown,
+                    "Invalid baud rate setting encountered",
+            )),
+        }
+    }
+
+    /// Returns the port's baud rate
+    ///
+    /// On some platforms this will be the actual device baud rate, which may differ from the
+    /// desired baud rate.
+    #[cfg(any(target_os = "dragonflybsd", target_os = "freebsd", target_os = "ios",
+              target_os = "macos", target_os = "netbsd", target_os = "openbsd"))]
     fn baud_rate(&self) -> ::Result<u32> {
         use self::libc::*;
 
         let termios = self.get_termios()?;
-
         let ospeed = unsafe { libc::cfgetospeed(&termios) };
         let ispeed = unsafe { libc::cfgetispeed(&termios) };
 
         assert!(ospeed == ispeed);
 
-        match (ospeed as nix::libc::speed_t).into() {
+        match ospeed {
             B50 => Ok(50),
             B75 => Ok(75),
             B110 => Ok(110),
@@ -399,34 +468,13 @@ impl SerialPort for TTYPort {
             B76800 => Ok(76800),
             B115200 => Ok(115200),
             B230400 => Ok(230400),
-            #[cfg(any(target_os = "android", target_os = "linux", target_os = "freebsd"))]
+            #[cfg(target_os = "freebsd")]
             B460800 => Ok(460800),
-            #[cfg(any(target_os = "android", target_os = "linux"))]
-            B500000 => Ok(500000),
-            #[cfg(any(target_os = "android", target_os = "linux"))]
-            B576000 => Ok(576000),
-            // FIXME: Re-enable Baud921600 once nix > 0.10.0 is released
-            #[cfg(any(target_os = "android", target_os = "freebsd", target_os = "linux", target_os = "netbsd"))]
-            B921600 => Ok(921_600),
-            #[cfg(any(target_os = "android", target_os = "linux"))]
-            B1000000 => Ok(1000000),
-            #[cfg(any(target_os = "android", target_os = "linux"))]
-            B1152000 => Ok(1152000),
-            #[cfg(any(target_os = "android",target_os = "linux"))]
-            B1500000 => Ok(1500000),
-            #[cfg(any(target_os = "android", target_os = "linux"))]
-            B2000000 => Ok(2000000),
-            #[cfg(any(target_os = "android", target_os = "linux"))]
-            B2500000 => Ok(2500000),
-            #[cfg(any(target_os = "android", target_os = "linux"))]
-            B3000000 => Ok(3000000),
-            #[cfg(any(target_os = "android", target_os = "linux"))]
-            B3500000 => Ok(3500000),
-            #[cfg(any(target_os = "android", target_os = "linux"))]
-            B4000000 => Ok(4000000),
+            #[cfg(any(target_os = "freebsd", target_os = "netbsd"))]
+            B921600 => Ok(921600),
             _ => Err(Error::new(
-                    ErrorKind::Unknown,
-                    "Invalid baud rate setting encountered",
+                ErrorKind::Unknown,
+                "Invalid baud rate setting encountered",
             )),
         }
     }
@@ -494,10 +542,62 @@ impl SerialPort for TTYPort {
         Ok(())
     }
 
+    #[cfg(any(target_os = "android", target_os = "linux"))]
     fn set_baud_rate(&mut self, baud_rate: u32) -> ::Result<()> {
         use self::libc::*;
 
         let mut termios = self.get_termios()?;
+
+        termios.c_cflag &= !CBAUD;
+        termios.c_cflag |= BOTHER;
+
+        let baud_rate = match baud_rate {
+            50 => 50,
+            75 => 75,
+            110 => 110,
+            134 => 134,
+            150 => 150,
+            200 => 200,
+            300 => 300,
+            600 => 600,
+            1200 => 1200,
+            1800 => 1800,
+            2400 => 2400,
+            4800 => 4800,
+            9600 => 9600,
+            19200 => 19200,
+            38400 => 38400,
+            57600 => 57600,
+            115200 => 115200,
+            230400 => 230400,
+            460800 => 460800,
+            500000 => 500000,
+            576000 => 576000,
+            921600 => 921600,
+            1000000 => 1000000,
+            1152000 => 1152000,
+            1500000 => 1500000,
+            2000000 => 2000000,
+            2500000 => 2500000,
+            3000000 => 3000000,
+            3500000 => 3500000,
+            4000000 => 4000000,
+            _ => return Err(nix::Error::from_errno(nix::errno::Errno::EINVAL).into()),
+        };
+
+        termios.c_ispeed = baud_rate;
+        termios.c_ospeed = baud_rate;
+
+        self.set_termios(&termios)
+    }
+
+    #[cfg(any(target_os = "dragonflybsd", target_os = "freebsd", target_os = "ios",
+              target_os = "macos", target_os = "netbsd", target_os = "openbsd"))]
+    fn set_baud_rate(&mut self, baud_rate: u32) -> ::Result<()> {
+        use self::libc::*;
+
+        let mut termios = self.get_termios()?;
+
         let baud_rate = match baud_rate {
             50 => B50,
             75 => B75,
@@ -511,54 +611,24 @@ impl SerialPort for TTYPort {
             1800 => B1800,
             2400 => B2400,
             4800 => B4800,
-            #[cfg(any(target_os = "freebsd", target_os = "dragonfly", target_os = "macos",
-                        target_os = "netbsd", target_os = "openbsd"))]
             7200 => B7200,
             9600 => B9600,
-            #[cfg(any(target_os = "freebsd", target_os = "dragonfly", target_os = "macos",
-                        target_os = "netbsd", target_os = "openbsd"))]
             14400 => B14400,
             19200 => B19200,
-            #[cfg(any(target_os = "freebsd", target_os = "dragonfly", target_os = "macos",
-                        target_os = "netbsd", target_os = "openbsd"))]
             28800 => B28800,
             38400 => B38400,
             57600 => B57600,
-            #[cfg(any(target_os = "freebsd", target_os = "dragonfly", target_os = "macos",
-                        target_os = "netbsd", target_os = "openbsd"))]
             76800 => B76800,
             115200 => B115200,
             230400 => B230400,
-            #[cfg(any(target_os = "android", target_os = "freebsd", target_os = "linux"))]
+            #[cfg(target_os = "freebsd")]
             460800 => B460800,
-            #[cfg(any(target_os = "android", target_os = "linux"))]
-            500000 => B500000,
-            #[cfg(any(target_os = "android", target_os = "linux"))]
-            576000 => B576000,
-            // FIXME: Re-enable Baud921600 for FreeBSD & NetBSD once nix > 0.10.0 is released
-            #[cfg(any(target_os = "android", target_os = "linux"))]
-            921600 => B921600,
-            #[cfg(any(target_os = "android", target_os = "linux"))]
-            1000000 => B1000000,
-            #[cfg(any(target_os = "android", target_os = "linux"))]
-            1152000 => B1152000,
-            #[cfg(any(target_os = "android", target_os = "linux"))]
-            1500000 => B1500000,
-            #[cfg(any(target_os = "android", target_os = "linux"))]
-            2000000 => B2000000,
-            #[cfg(any(target_os = "android", target_os = "linux"))]
-            2500000 => B2500000,
-            #[cfg(any(target_os = "android", target_os = "linux"))]
-            3000000 => B3000000,
-            #[cfg(any(target_os = "android", target_os = "linux"))]
-            3500000 => B3500000,
-            #[cfg(any(target_os = "android", target_os = "linux"))]
-            4000000 => B4000000,
             _ => return Err(nix::Error::from_errno(nix::errno::Errno::EINVAL).into()),
         };
 
         let res = unsafe { libc::cfsetspeed(&mut termios, baud_rate) };
         nix::errno::Errno::result(res)?;
+
         self.set_termios(&termios)
     }
 
