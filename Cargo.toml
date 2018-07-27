@@ -16,7 +16,7 @@ gitlab = { repository = "susurrus/serialport-rs" }
 travis-ci = { repository = "Susurrus/serialport-rs" }
 
 [dev-dependencies]
-argparse = "0.2"
+clap = "2.32"
 
 [target."cfg(unix)".dependencies]
 nix = "0.11"
