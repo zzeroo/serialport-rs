@@ -58,7 +58,7 @@ fn main() {
     // Run single-port tests on port1
     let mut port1 = match serialport::open(&port1_name) {
         Err(e) => {
-            eprintln!("Failed to open \"{}\". Error: {}", port2_name, e);
+            eprintln!("Failed to open \"{}\". Error: {}", port1_name, e);
             ::std::process::exit(1);
         }
         Ok(p) => p,
