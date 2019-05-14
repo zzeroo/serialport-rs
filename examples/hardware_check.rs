@@ -249,6 +249,8 @@ fn test_single_port(port: &mut serialport::SerialPort, loopback: bool) {
     let msg = "Test Message";
     port.write_all(msg.as_bytes())
         .expect("Unable to write bytes.");
+    // Fix hanging task
+    port.clear(ClearBuffer::Output).expect("Could not clear output buffer");
     println!("success");
 
     print!("Testing data reception...");
